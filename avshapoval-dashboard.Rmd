@@ -1,0 +1,103 @@
+---
+title: "HW 2:  Анализ маркетинговой компании"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+### Загрузка данных и преобразование
+```{r setup, include=FALSE}
+marketing = marketing = read.csv("~/shared/minor2_2021/1-Intro/hw2/marketing_campaign.csv")
+
+library(dplyr)
+library(rpart)
+library(lubridate)
+library(flexdashboard)
+
+marketing = marketing %>% na.omit()
+
+marketing$Response = as.factor(marketing$Response)
+
+marketing$Dt_Customer = as.Date(marketing$Dt_Customer, format = "%d-%m-%Y")
+first_registration = min(year(marketing$Dt_Customer)*12 + month(marketing$Dt_Customer))
+marketing$month_since_first_reg = year(marketing$Dt_Customer)*12 + month(marketing$Dt_Customer) - first_registration
+
+marketing$Marital_Status = as.factor(marketing$Marital_Status)
+# загрузка данных, предобработка 
+```
+Row
+-----------------------------------------------------------------------
+
+### Процент клиентов, принявших такое же решение об отклике на акцию, как и на предыдущую
+```{r}
+resp_acc = table(marketing$Response, marketing$AcceptedCmp)
+accuracy = (resp_acc[1,1] + resp_acc[2,2])/sum(resp_acc) * 100
+valueBox(paste(as.character(round(accuracy, digits = 2)), "%", sep=""), icon = "fas fa-bookmark")
+```
+
+
+
+Row
+-----------------------------------------------------------------------
+
+### Точность предсказаний модели (тестовая выборка)
+
+```{r}
+set.seed(4)
+train = sample_frac(marketing, 0.8)
+
+tree <- rpart(Response ~ Income + Recency + AcceptedCmp, method = "class", data =train)
+
+pred = predict(tree, type="class", data = train)
+anti_train = anti_join(marketing, train)
+pred2 = predict(tree, type = "class", newdata = anti_train)
+t = table(pred2, anti_train$Response)
+accuracy = (t[1,1] + t[2,2])/sum(t)
+valueBox(paste(as.character(round(accuracy* 100, digits = 2)), "%", sep=""), icon = "fas fa-bookmark")
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Точность предсказазний для разных возрастных групп
+
+```{r}
+young = marketing %>% filter(Year_Birth>= 1970 & Year_Birth < 2000)
+adult = marketing %>% filter(Year_Birth>= 1940 & Year_Birth < 1970)
+old = marketing %>% filter(Year_Birth < 1940)
+
+pred.young = predict(tree, type="class", newdata = young)
+pred.adult = predict(tree, type="class", newdata = adult)
+pred.old = predict(tree, type="class", newdata = old)
+
+t.young = table(pred.young, young$Response)
+y = (t.young[1,1] + t.young[2,2])/sum(t.young)
+
+t.adult = table(pred.adult, adult$Response)
+a = (t.adult[1,1] + t.adult[2,2])/sum(t.adult)
+
+t.old = table(pred.old, old$Response)
+o = (t.old[1,1] + t.old[2,2])/sum(t.old)
+
+df = data.frame(
+  age = c("молодые(1970 - 2000)", "взрослые(1940 - 1970)", "пожилые(1893 - 1940)"),
+  accuracy_percentage = c(y, a, o)
+  
+)
+
+library(ggplot2)
+age_groups_bar = ggplot()+
+  geom_bar(mapping = aes(age, accuracy_percentage*100), stat = "identity", data = df, fill = "chartreuse4") + 
+  xlab("Возрастные группы") +
+  ylab("Точность предсказаний моделью")+
+  ggtitle("Точность предсказания модели для разных возрастных групп")
+age_groups_bar
+
+### Сравнение оценок сидений  и объема для ног в самолетах
+```
+
+
+```{r}
+
+```
